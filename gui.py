@@ -139,6 +139,31 @@ class DroneImageSortGUI:
         )
         browse_button.pack(pady=20)
         
+        # Manual entry option
+        manual_frame = tk.Frame(content_frame, bg="#f0f0f0")
+        manual_frame.pack(fill=tk.X, pady=10)
+        
+        manual_label = tk.Label(
+            manual_frame,
+            text="Or paste folder path:",
+            font=("Arial", 10),
+            bg="#f0f0f0",
+            fg="#34495e"
+        )
+        manual_label.pack(anchor=tk.W)
+        
+        self.source_path_entry = tk.Entry(
+            manual_frame,
+            font=("Arial", 10),
+            bg="white",
+            fg="#2c3e50"
+        )
+        self.source_path_entry.pack(fill=tk.X, pady=5)
+        # Set initial value if path was already selected
+        if self.source_path:
+            self.source_path_entry.insert(0, self.source_path)
+        self.source_path_entry.bind("<KeyRelease>", self._on_source_entry_change)
+        
         # Navigation buttons
         nav_frame = tk.Frame(content_frame, bg="#f0f0f0")
         nav_frame.pack(fill=tk.X, pady=20)
@@ -170,14 +195,24 @@ class DroneImageSortGUI:
         next_button.pack(side=tk.RIGHT, padx=5)
         
     def select_source_folder(self):
-        """Open folder selection dialog"""
-        folder = filedialog.askdirectory(title="Select source folder with drone images", parent=self.root)
-        if folder:
-            self.source_path = folder
-            self.source_label.config(
-                text=f"Selected: {self.source_path}",
-                fg="#27ae60"
+        """Open folder selection dialog with error handling"""
+        try:
+            # Start from home directory for faster loading
+            initial_dir = os.path.expanduser("~")
+            folder = filedialog.askdirectory(
+                title="Select source folder with drone images",
+                parent=self.root,
+                initialdir=initial_dir,
+                mustexist=True
             )
+            if folder:
+                self.source_path = folder
+                self.source_label.config(
+                    text=f"Selected: {self.source_path}",
+                    fg="#27ae60"
+                )
+        except Exception as e:
+            messagebox.showerror("Error", f"Error opening folder dialog: {e}")
             
     def show_dest_selection(self):
         """Show destination folder selection screen"""
@@ -241,6 +276,31 @@ class DroneImageSortGUI:
         )
         browse_button.pack(pady=20)
         
+        # Manual entry option
+        manual_frame = tk.Frame(content_frame, bg="#f0f0f0")
+        manual_frame.pack(fill=tk.X, pady=10)
+        
+        manual_label = tk.Label(
+            manual_frame,
+            text="Or paste folder path:",
+            font=("Arial", 10),
+            bg="#f0f0f0",
+            fg="#34495e"
+        )
+        manual_label.pack(anchor=tk.W)
+        
+        self.dest_path_entry = tk.Entry(
+            manual_frame,
+            font=("Arial", 10),
+            bg="white",
+            fg="#2c3e50"
+        )
+        self.dest_path_entry.pack(fill=tk.X, pady=5)
+        # Set initial value if path was already selected
+        if self.dest_path:
+            self.dest_path_entry.insert(0, self.dest_path)
+        self.dest_path_entry.bind("<KeyRelease>", self._on_dest_entry_change)
+        
         # Navigation buttons
         nav_frame = tk.Frame(content_frame, bg="#f0f0f0")
         nav_frame.pack(fill=tk.X, pady=20)
@@ -272,10 +332,40 @@ class DroneImageSortGUI:
         start_button.pack(side=tk.RIGHT, padx=5)
         
     def select_dest_folder(self):
-        """Open destination folder selection dialog"""
-        folder = filedialog.askdirectory(title="Select destination folder (leave empty to use source folder)", parent=self.root)
-        if folder:
-            self.dest_path = folder
+        """Open destination folder selection dialog with error handling"""
+        try:
+            # Start from home directory for faster loading
+            initial_dir = os.path.expanduser("~")
+            folder = filedialog.askdirectory(
+                title="Select destination folder (leave empty to use source folder)",
+                parent=self.root,
+                initialdir=initial_dir,
+                mustexist=True
+            )
+            if folder:
+                self.dest_path = folder
+                self.dest_label.config(
+                    text=f"Selected: {self.dest_path}",
+                    fg="#27ae60"
+                )
+        except Exception as e:
+            messagebox.showerror("Error", f"Error opening folder dialog: {e}")
+    
+    def _on_source_entry_change(self, event=None):
+        """Handle manual source path entry"""
+        path = self.source_path_entry.get().strip()
+        if path and os.path.isdir(path):
+            self.source_path = path
+            self.source_label.config(
+                text=f"Selected: {self.source_path}",
+                fg="#27ae60"
+            )
+    
+    def _on_dest_entry_change(self, event=None):
+        """Handle manual destination path entry"""
+        path = self.dest_path_entry.get().strip()
+        if path and os.path.isdir(path):
+            self.dest_path = path
             self.dest_label.config(
                 text=f"Selected: {self.dest_path}",
                 fg="#27ae60"
