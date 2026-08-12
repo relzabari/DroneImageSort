@@ -171,7 +171,7 @@ class DroneImageSortGUI:
         
     def select_source_folder(self):
         """Open folder selection dialog"""
-        folder = filedialog.askdirectory(title="Select source folder with drone images")
+        folder = filedialog.askdirectory(title="Select source folder with drone images", parent=self.root)
         if folder:
             self.source_path = folder
             self.source_label.config(
@@ -273,7 +273,7 @@ class DroneImageSortGUI:
         
     def select_dest_folder(self):
         """Open destination folder selection dialog"""
-        folder = filedialog.askdirectory(title="Select destination folder (leave empty to use source folder)")
+        folder = filedialog.askdirectory(title="Select destination folder (leave empty to use source folder)", parent=self.root)
         if folder:
             self.dest_path = folder
             self.dest_label.config(
@@ -400,10 +400,14 @@ class DroneImageSortGUI:
         self.logger.addHandler(gui_handler)
         
     def log_to_gui(self, message, level="INFO"):
-        """Add message to GUI output text area"""
-        self.output_text.insert(tk.END, f"{message}\n", level)
-        self.output_text.see(tk.END)
-        self.root.update()
+        """Add message to GUI output text area (thread-safe)"""
+        self.root.after(0, self._update_output_text, message, level)
+    
+    def _update_output_text(self, message, level):
+        """Actually update the output text (called on main thread)"""
+        if hasattr(self, 'output_text') and self.output_text.winfo_exists():
+            self.output_text.insert(tk.END, f"{message}\n", level)
+            self.output_text.see(tk.END)
         
     def show_completion_buttons(self):
         """Show completion buttons"""
