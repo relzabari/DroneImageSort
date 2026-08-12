@@ -358,19 +358,18 @@ class DroneImageSortGUI:
         # Start sorting in separate thread
         sort_thread = threading.Thread(
             target=self.run_sorting,
-            args=(working_path,),
             daemon=True
         )
         sort_thread.start()
         
-    def run_sorting(self, working_path):
+    def run_sorting(self):
         """Run sorting in background thread"""
         try:
             # Redirect logging to GUI
             self.setup_gui_logging_handler()
             
-            # Run sorting
-            success = sort_drone_images(self.source_path, self.logger)
+            # Run sorting with source and optional destination
+            success = sort_drone_images(self.source_path, self.logger, self.dest_path)
             
             if success:
                 self.log_to_gui("✓ Sorting completed successfully!", "INFO")
