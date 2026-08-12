@@ -38,6 +38,11 @@ cd DroneImageSort
 python gui.py
 ```
 
+On Windows, you can also double-click `launch_gui.vbs`. The launcher finds
+`pythonw.exe`, sets the project folder as the working directory, and starts the
+GUI without opening a console window. You can create a desktop shortcut that
+points to this launcher.
+
 The GUI provides a user-friendly interface to:
 1. Select source folder containing drone images
 2. Optionally select destination folder (defaults to source folder)
