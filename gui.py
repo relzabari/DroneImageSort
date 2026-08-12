@@ -21,9 +21,34 @@ class DroneImageSortGUI:
         self.dest_path = None
         self.logger = None
         self.log_file = None
+        self.sorting_thread = None
+        self.is_running = True
+        
+        # Setup proper cleanup on window close
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Create UI
         self.create_home_screen()
+    
+    def on_closing(self):
+        """Handle window closing gracefully"""
+        self.is_running = False
+        
+        # Wait for sorting thread to finish (with timeout)
+        if self.sorting_thread and self.sorting_thread.is_alive():
+            self.sorting_thread.join(timeout=5)
+        
+        # Close logger handlers
+        if self.logger:
+            for handler in self.logger.handlers[:]:
+                try:
+                    handler.close()
+                    self.logger.removeHandler(handler)
+                except:
+                    pass
+        
+        # Destroy the window
+        self.root.destroy()
         
     def create_home_screen(self):
         """Create the welcome/home screen"""
@@ -446,20 +471,28 @@ class DroneImageSortGUI:
         self.output_text.tag_config("ERROR", foreground="#e74c3c")
         
         # Start sorting in separate thread
-        sort_thread = threading.Thread(
+        self.sorting_thread = threading.Thread(
             target=self.run_sorting,
             daemon=True
         )
-        sort_thread.start()
+        self.sorting_thread.start()
         
     def run_sorting(self):
         """Run sorting in background thread"""
         try:
+            # Check if we should still run
+            if not self.is_running:
+                return
+            
             # Redirect logging to GUI
             self.setup_gui_logging_handler()
             
             # Run sorting with source and optional destination
             success = sort_drone_images(self.source_path, self.logger, self.dest_path)
+            
+            # Check again before updating GUI
+            if not self.is_running:
+                return
             
             if success:
                 self.log_to_gui("✓ Sorting completed successfully!", "INFO")
@@ -467,11 +500,13 @@ class DroneImageSortGUI:
                 self.log_to_gui("✗ Sorting encountered errors!", "ERROR")
                 
             # Add completion button
-            self.root.after(500, self.show_completion_buttons)
+            if self.is_running:
+                self.root.after(500, self.show_completion_buttons)
             
         except Exception as e:
-            self.log_to_gui(f"✗ Fatal error: {e}", "ERROR")
-            self.root.after(500, self.show_completion_buttons)
+            if self.is_running:
+                self.log_to_gui(f"✗ Fatal error: {e}", "ERROR")
+                self.root.after(500, self.show_completion_buttons)
             
     def setup_gui_logging_handler(self):
         """Add a handler to log to GUI"""
@@ -501,6 +536,10 @@ class DroneImageSortGUI:
         
     def show_completion_buttons(self):
         """Show completion buttons"""
+        # Check if window still exists
+        if not self.is_running or not self.root.winfo_exists():
+            return
+        
         # Find and create button frame if it doesn't exist
         button_frame = tk.Frame(self.root, bg="#f0f0f0")
         button_frame.pack(fill=tk.X, padx=20, pady=10)
@@ -567,9 +606,15 @@ class DroneImageSortGUI:
 
 
 def main():
-    root = tk.Tk()
-    app = DroneImageSortGUI(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        app = DroneImageSortGUI(root)
+        root.mainloop()
+    except Exception as e:
+        print(f"Fatal error in GUI: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
