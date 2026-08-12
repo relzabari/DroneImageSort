@@ -2,7 +2,36 @@ import os
 import shutil
 import sys
 import logging
+import filecmp
 from datetime import datetime
+
+
+def resolve_destination(source_path, destination):
+    """
+    Resolve a destination name without overwriting an existing file.
+
+    Returns a tuple of (resolved_destination, status), where status is:
+    - "new": the requested destination is available
+    - "identical": an identical file already exists
+    - "renamed": a different file exists and a numbered name was selected
+    """
+    if not os.path.exists(destination):
+        return destination, "new"
+
+    if filecmp.cmp(source_path, destination, shallow=False):
+        return destination, "identical"
+
+    directory, filename = os.path.split(destination)
+    stem, extension = os.path.splitext(filename)
+    suffix = 2
+
+    while True:
+        candidate = os.path.join(directory, f"{stem}_{suffix}{extension}")
+        if not os.path.exists(candidate):
+            return candidate, "renamed"
+        if filecmp.cmp(source_path, candidate, shallow=False):
+            return candidate, "identical"
+        suffix += 1
 
 def setup_logging(log_dir=None):
     """
@@ -95,6 +124,8 @@ def sort_drone_images(source_folder, logger=None, dest_folder=None):
     # Process all files in the source folder
     moved_count = 0
     skipped_count = 0
+    identical_count = 0
+    renamed_count = 0
     other_count = 0
     total_files = 0
     
@@ -134,18 +165,30 @@ def sort_drone_images(source_folder, logger=None, dest_folder=None):
                 category = "Other"
                 logger.debug(f"File '{filename}' does not match standard patterns, moving to Other")
             
-            # Check if destination file already exists
-            if os.path.exists(destination):
-                logger.warning(f"Skipped (already exists): {filename}")
+            # Avoid overwriting files with the same name. Skip only when an
+            # identical copy exists; otherwise select a numbered filename.
+            resolved_destination, conflict_status = resolve_destination(file_path, destination)
+
+            if conflict_status == "identical":
+                logger.info(f"Skipped (identical file already exists): {filename}")
                 skipped_count += 1
+                identical_count += 1
             else:
                 try:
-                    shutil.move(file_path, destination)
+                    if conflict_status == "renamed":
+                        new_filename = os.path.basename(resolved_destination)
+                        logger.info(f"Name conflict: {filename} will be saved as {new_filename}")
+
+                    shutil.move(file_path, resolved_destination)
+
+                    if conflict_status == "renamed":
+                        renamed_count += 1
+
                     if category == "Other":
-                        logger.info(f"Moved to Other: {filename}")
+                        logger.info(f"Moved to Other: {os.path.basename(resolved_destination)}")
                         other_count += 1
                     else:
-                        logger.info(f"Moved to {category}: {filename}")
+                        logger.info(f"Moved to {category}: {os.path.basename(resolved_destination)}")
                         moved_count += 1
                 except Exception as e:
                     logger.error(f"Error moving {filename}: {e}")
@@ -159,6 +202,8 @@ def sort_drone_images(source_folder, logger=None, dest_folder=None):
     logger.info(f"Moved to categories: {moved_count} files")
     logger.info(f"Moved to Other: {other_count} files")
     logger.info(f"Skipped: {skipped_count} files")
+    logger.info(f"  Identical files skipped: {identical_count}")
+    logger.info(f"Renamed due to name conflicts: {renamed_count} files")
     logger.info("=" * 50)
     
     return True
