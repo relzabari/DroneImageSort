@@ -49,6 +49,20 @@ The script provides a summary of the sorting operation:
 - Number of files moved to Other folder
 - Number of skipped files (already existing or errors)
 
+## Logging
+
+The script includes comprehensive logging functionality:
+- **Console Output**: Real-time updates of important operations (INFO level)
+- **Log Files**: Detailed logs are saved to `logs/` directory with timestamp
+  - Format: `drone_sort_YYYYMMDD_HHMMSS.log`
+  - Includes DEBUG, INFO, WARNING, and ERROR level messages
+  
+Log levels:
+- **DEBUG**: Detailed information about file processing
+- **INFO**: General operational information (file movements, statistics)
+- **WARNING**: Skipped files (already exist)
+- **ERROR**: Errors encountered during execution
+
 ## Requirements
 
 - Python 3.6+
