@@ -109,17 +109,12 @@ def sort_drone_images(source_folder, logger=None, dest_folder=None):
     
     logger.info(f"Processing folder: {source_folder}")
     
-    # Create sorted image folders in destination
+    # Define category folders. Each folder is created only when a matching
+    # file is actually found, so unused categories do not leave empty folders.
     thermal_dir = os.path.join(dest_folder, "Thermal")
     visual_dir = os.path.join(dest_folder, "Visual")
     wide_dir = os.path.join(dest_folder, "Wide")
     other_dir = os.path.join(dest_folder, "Other")
-    
-    os.makedirs(thermal_dir, exist_ok=True)
-    os.makedirs(visual_dir, exist_ok=True)
-    os.makedirs(wide_dir, exist_ok=True)
-    
-    logger.debug(f"Created/verified directories: Thermal, Visual, Wide")
     
     # Process all files in the source folder
     moved_count = 0
@@ -160,10 +155,13 @@ def sort_drone_images(source_folder, logger=None, dest_folder=None):
                 category = "Visual"
             else:
                 # File doesn't match any category
-                os.makedirs(other_dir, exist_ok=True)
                 destination = os.path.join(other_dir, filename)
                 category = "Other"
                 logger.debug(f"File '{filename}' does not match standard patterns, moving to Other")
+
+            category_dir = os.path.dirname(destination)
+            os.makedirs(category_dir, exist_ok=True)
+            logger.debug(f"Created/verified directory: {category}")
             
             # Avoid overwriting files with the same name. Skip only when an
             # identical copy exists; otherwise select a numbered filename.

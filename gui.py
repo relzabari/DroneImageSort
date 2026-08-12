@@ -1,13 +1,200 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import messagebox, scrolledtext
 import threading
 import logging
-from datetime import datetime
 import os
 import sys
+import string
+import ctypes
 
 # Import the sorting function
 from sort_images import sort_drone_images, setup_logging
+
+
+def get_common_folders():
+    """Return existing, commonly used folders without querying Windows Explorer."""
+    home = os.path.expanduser("~")
+    cloud_home = os.environ.get("OneDrive") or os.environ.get("OneDriveConsumer")
+
+    def first_existing(*paths):
+        return next((path for path in paths if path and os.path.isdir(path)), None)
+
+    candidates = [
+        ("Home", home),
+        ("Desktop", first_existing(os.path.join(home, "Desktop"),
+                                   os.path.join(cloud_home, "Desktop") if cloud_home else None)),
+        ("Documents", first_existing(os.path.join(home, "Documents"),
+                                     os.path.join(cloud_home, "Documents") if cloud_home else None)),
+        ("Downloads", os.path.join(home, "Downloads")),
+        ("Pictures", first_existing(os.path.join(home, "Pictures"),
+                                    os.path.join(cloud_home, "Pictures") if cloud_home else None)),
+        ("Videos", first_existing(os.path.join(home, "Videos"),
+                                  os.path.join(cloud_home, "Videos") if cloud_home else None)),
+    ]
+    return [(name, path) for name, path in candidates if path and os.path.isdir(path)]
+
+
+class FolderPicker(tk.Toplevel):
+    """A Tk-only folder picker that does not invoke the Windows shell dialog."""
+
+    def __init__(self, parent, title, initial_dir=None):
+        super().__init__(parent)
+        self.result = None
+        self.current_dir = None
+        self.title(title)
+        self.geometry("700x520")
+        self.minsize(520, 360)
+        self.transient(parent)
+        self.protocol("WM_DELETE_WINDOW", self.cancel)
+
+        path_frame = tk.Frame(self, padx=10, pady=10)
+        path_frame.pack(fill=tk.X)
+
+        tk.Label(path_frame, text="Folder path:").pack(anchor=tk.W)
+        entry_row = tk.Frame(path_frame)
+        entry_row.pack(fill=tk.X, pady=(4, 0))
+        self.path_entry = tk.Entry(entry_row)
+        self.path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.path_entry.bind("<Return>", self.go_to_entered_path)
+        tk.Button(entry_row, text="Go", width=8,
+                  command=self.go_to_entered_path).pack(side=tk.LEFT, padx=(8, 0))
+
+        toolbar = tk.Frame(self, padx=10)
+        toolbar.pack(fill=tk.X)
+        tk.Button(toolbar, text="Up", width=10,
+                  command=self.go_up).pack(side=tk.LEFT)
+        tk.Button(toolbar, text="Drives", width=10,
+                  command=self.show_drives).pack(side=tk.LEFT, padx=6)
+        tk.Button(toolbar, text="Home", width=10,
+                  command=lambda: self.load_directory(os.path.expanduser("~"))).pack(side=tk.LEFT)
+
+        browser_frame = tk.Frame(self, padx=10, pady=10)
+        browser_frame.pack(fill=tk.BOTH, expand=True)
+
+        sidebar = tk.Frame(browser_frame, bg="#ecf0f1", padx=8, pady=8, width=150)
+        sidebar.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        sidebar.pack_propagate(False)
+        tk.Label(
+            sidebar, text="Quick access", font=("Segoe UI", 10, "bold"),
+            bg="#ecf0f1", fg="#34495e", anchor=tk.W
+        ).pack(fill=tk.X, pady=(0, 8))
+
+        for name, path in get_common_folders():
+            tk.Button(
+                sidebar, text=name, anchor=tk.W, relief=tk.FLAT,
+                bg="#ecf0f1", activebackground="#d6eaf8",
+                command=lambda folder=path: self.load_directory(folder)
+            ).pack(fill=tk.X, pady=1)
+
+        tk.Frame(sidebar, height=1, bg="#bdc3c7").pack(fill=tk.X, pady=8)
+        tk.Button(
+            sidebar, text="Drives", anchor=tk.W, relief=tk.FLAT,
+            bg="#ecf0f1", activebackground="#d6eaf8",
+            command=self.show_drives
+        ).pack(fill=tk.X, pady=1)
+
+        list_frame = tk.Frame(browser_frame)
+        list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.folder_list = tk.Listbox(
+            list_frame, font=("Segoe UI", 11), activestyle="dotbox",
+            yscrollcommand=scrollbar.set
+        )
+        self.folder_list.pack(fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.folder_list.yview)
+        self.folder_list.bind("<Double-Button-1>", self.open_selected)
+        self.folder_list.bind("<Return>", self.open_selected)
+
+        self.status_label = tk.Label(self, text="", anchor=tk.W, fg="#c0392b", padx=10)
+        self.status_label.pack(fill=tk.X)
+
+        buttons = tk.Frame(self, padx=10, pady=10)
+        buttons.pack(fill=tk.X)
+        tk.Button(buttons, text="Cancel", width=12,
+                  command=self.cancel).pack(side=tk.RIGHT)
+        tk.Button(buttons, text="Select This Folder", width=18,
+                  bg="#27ae60", fg="white", command=self.select_current).pack(side=tk.RIGHT, padx=8)
+
+        start_dir = initial_dir if initial_dir and os.path.isdir(initial_dir) else os.path.expanduser("~")
+        self.load_directory(start_dir)
+        self.grab_set()
+        self.path_entry.focus_set()
+
+    def load_directory(self, path):
+        path = os.path.abspath(os.path.expandvars(os.path.expanduser(path.strip())))
+        if not os.path.isdir(path):
+            self.status_label.config(text="Folder does not exist or is not accessible.")
+            return
+
+        try:
+            with os.scandir(path) as entries:
+                folders = sorted(
+                    (entry.name for entry in entries if entry.is_dir(follow_symlinks=False)),
+                    key=str.casefold
+                )
+        except OSError as error:
+            self.status_label.config(text=f"Cannot open folder: {error}")
+            return
+
+        self.current_dir = path
+        self.path_entry.delete(0, tk.END)
+        self.path_entry.insert(0, path)
+        self.folder_list.delete(0, tk.END)
+        for folder in folders:
+            self.folder_list.insert(tk.END, folder)
+        self.status_label.config(text=f"{len(folders)} folders")
+
+    def show_drives(self):
+        self.current_dir = None
+        self.path_entry.delete(0, tk.END)
+        self.folder_list.delete(0, tk.END)
+        if os.name == "nt":
+            drive_mask = ctypes.windll.kernel32.GetLogicalDrives()
+            drives = [f"{letter}:\\" for index, letter in enumerate(string.ascii_uppercase)
+                      if drive_mask & (1 << index)]
+        else:
+            drives = [os.path.sep]
+        for drive in drives:
+            self.folder_list.insert(tk.END, drive)
+        self.status_label.config(text=f"{len(drives)} drives")
+
+    def go_to_entered_path(self, event=None):
+        self.load_directory(self.path_entry.get())
+
+    def go_up(self):
+        if not self.current_dir:
+            return
+        parent = os.path.dirname(self.current_dir)
+        if parent == self.current_dir:
+            self.show_drives()
+        else:
+            self.load_directory(parent)
+
+    def open_selected(self, event=None):
+        selection = self.folder_list.curselection()
+        if not selection:
+            return
+        name = self.folder_list.get(selection[0])
+        path = name if self.current_dir is None else os.path.join(self.current_dir, name)
+        self.load_directory(path)
+
+    def select_current(self):
+        if self.current_dir and os.path.isdir(self.current_dir):
+            self.result = self.current_dir
+            self.destroy()
+        else:
+            self.status_label.config(text="Open a drive or folder before selecting it.")
+
+    def cancel(self):
+        self.result = None
+        self.destroy()
+
+
+def choose_folder(parent, title, initial_dir=None):
+    picker = FolderPicker(parent, title, initial_dir)
+    parent.wait_window(picker)
+    return picker.result
 
 class DroneImageSortGUI:
     def __init__(self, root):
@@ -170,13 +357,22 @@ class DroneImageSortGUI:
         
         manual_label = tk.Label(
             manual_frame,
-            text="Or paste folder path:",
+            text="Or paste a folder path:",
             font=("Arial", 10),
             bg="#f0f0f0",
             fg="#34495e"
         )
         manual_label.pack(anchor=tk.W)
         
+        hint_label = tk.Label(
+            manual_frame,
+            text="Example: C:\\Users\\user\\Downloads",
+            font=("Arial", 9),
+            bg="#f0f0f0",
+            fg="#7f8c8d"
+        )
+        hint_label.pack(anchor=tk.W)
+
         self.source_path_entry = tk.Entry(
             manual_frame,
             font=("Arial", 10),
@@ -222,13 +418,10 @@ class DroneImageSortGUI:
     def select_source_folder(self):
         """Open folder selection dialog with error handling"""
         try:
-            # Start from home directory for faster loading
-            initial_dir = os.path.expanduser("~")
-            folder = filedialog.askdirectory(
-                title="Select source folder with drone images",
-                parent=self.root,
-                initialdir=initial_dir,
-                mustexist=True
+            folder = choose_folder(
+                self.root,
+                "Select source folder with drone images",
+                self.source_path or os.path.expanduser("~")
             )
             if folder:
                 self.source_path = folder
@@ -236,13 +429,15 @@ class DroneImageSortGUI:
                     text=f"Selected: {self.source_path}",
                     fg="#27ae60"
                 )
+                self.source_path_entry.delete(0, tk.END)
+                self.source_path_entry.insert(0, folder)
         except Exception as e:
             messagebox.showerror("Error", f"Error opening folder dialog: {e}")
             
     def show_dest_selection(self):
         """Show destination folder selection screen"""
         if not self.source_path:
-            messagebox.showwarning("No Selection", "Please select a source folder first!")
+            messagebox.showwarning("No Selection", "Please enter a source folder path first!")
             return
             
         self.clear_window()
@@ -307,13 +502,22 @@ class DroneImageSortGUI:
         
         manual_label = tk.Label(
             manual_frame,
-            text="Or paste folder path:",
+            text="Or paste a folder path (optional):",
             font=("Arial", 10),
             bg="#f0f0f0",
             fg="#34495e"
         )
         manual_label.pack(anchor=tk.W)
         
+        hint_label = tk.Label(
+            manual_frame,
+            text="Leave empty to sort in source folder | Example: C:\\Users\\user\\SortedPhotos",
+            font=("Arial", 9),
+            bg="#f0f0f0",
+            fg="#7f8c8d"
+        )
+        hint_label.pack(anchor=tk.W)
+
         self.dest_path_entry = tk.Entry(
             manual_frame,
             font=("Arial", 10),
@@ -359,13 +563,10 @@ class DroneImageSortGUI:
     def select_dest_folder(self):
         """Open destination folder selection dialog with error handling"""
         try:
-            # Start from home directory for faster loading
-            initial_dir = os.path.expanduser("~")
-            folder = filedialog.askdirectory(
-                title="Select destination folder (leave empty to use source folder)",
-                parent=self.root,
-                initialdir=initial_dir,
-                mustexist=True
+            folder = choose_folder(
+                self.root,
+                "Select destination folder (leave empty to use source folder)",
+                self.dest_path or self.source_path or os.path.expanduser("~")
             )
             if folder:
                 self.dest_path = folder
@@ -373,6 +574,8 @@ class DroneImageSortGUI:
                     text=f"Selected: {self.dest_path}",
                     fg="#27ae60"
                 )
+                self.dest_path_entry.delete(0, tk.END)
+                self.dest_path_entry.insert(0, folder)
         except Exception as e:
             messagebox.showerror("Error", f"Error opening folder dialog: {e}")
     
@@ -415,7 +618,7 @@ class DroneImageSortGUI:
             fg="#ecf0f1",
             pady=20
         )
-        title_label.pack(fill=tk.X, bg="#2c3e50")
+        title_label.pack(fill=tk.X)
         
         # Progress info
         info_frame = tk.Frame(self.root, bg="#f0f0f0")
