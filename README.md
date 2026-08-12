@@ -93,8 +93,24 @@ Log levels:
 
 ## Requirements
 
-- Python 3.6+
+- Python 3.9+
 - No external dependencies (uses only standard library: `tkinter`, `logging`, `shutil`, `os`, `sys`)
+
+## Project Structure
+
+- `sorting_engine.py` - UI-independent classification and file-moving logic
+- `app_logging.py` - Shared logging setup and result summaries
+- `sort_images.py` - Command-line interface
+- `gui.py` - Tkinter graphical interface and custom folder picker
+- `tests/` - Automated unit tests for classification, conflicts, errors, and destinations
+
+## Tests
+
+Run the automated test suite from the project directory:
+
+```bash
+python -m unittest discover -v
+```
 
 ## License
 

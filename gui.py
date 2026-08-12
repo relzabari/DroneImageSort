@@ -7,8 +7,8 @@ import sys
 import string
 import ctypes
 
-# Import the sorting function
-from sort_images import sort_drone_images, setup_logging
+from app_logging import log_sort_summary, setup_logging
+from sorting_engine import sort_drone_images
 
 
 def get_common_folders():
@@ -690,14 +690,19 @@ class DroneImageSortGUI:
             # Redirect logging to GUI
             self.setup_gui_logging_handler()
             
-            # Run sorting with source and optional destination
-            success = sort_drone_images(self.source_path, self.logger, self.dest_path)
+            # Run the UI-independent engine and forward progress to logging.
+            result = sort_drone_images(
+                self.source_path,
+                self.dest_path,
+                progress=lambda level, message: getattr(self.logger, level)(message),
+            )
+            log_sort_summary(self.logger, result)
             
             # Check again before updating GUI
             if not self.is_running:
                 return
             
-            if success:
+            if result.success:
                 self.log_to_gui("✓ Sorting completed successfully!", "INFO")
             else:
                 self.log_to_gui("✗ Sorting encountered errors!", "ERROR")
