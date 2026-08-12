@@ -95,7 +95,7 @@ class DroneImageSortGUI:
             fg="#ecf0f1",
             pady=20
         )
-        title_label.pack(fill=tk.X, bg="#2c3e50")
+        title_label.pack(fill=tk.X)
         
         # Content frame
         content_frame = tk.Frame(self.root, bg="#f0f0f0")
@@ -196,7 +196,7 @@ class DroneImageSortGUI:
             fg="#ecf0f1",
             pady=20
         )
-        title_label.pack(fill=tk.X, bg="#2c3e50")
+        title_label.pack(fill=tk.X)
         
         # Content frame
         content_frame = tk.Frame(self.root, bg="#f0f0f0")
