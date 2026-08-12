@@ -34,7 +34,7 @@ def setup_logging(log_dir=None):
     file_handler.setFormatter(detailed_formatter)
     logger.addHandler(file_handler)
     
-    # Create console handler
+    # Create console handler (only for CLI usage)
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_formatter = logging.Formatter('%(levelname)s - %(message)s')
@@ -43,28 +43,48 @@ def setup_logging(log_dir=None):
     
     return logger, log_file
 
-def sort_drone_images(folder_path, logger=None):
+def sort_drone_images(source_folder, logger=None, dest_folder=None):
     """
-    Sorts drone images into Thermal, Visual, and Wide folders.
+    Sorts drone images from source folder into Thermal, Visual, and Wide folders.
     Files that don't match any category go to Other folder.
+    
+    Args:
+        source_folder: Path to the folder containing source images
+        logger: Logger instance (optional)
+        dest_folder: Destination folder where sorted folders will be created (optional, defaults to source_folder)
     """
     if logger is None:
         logger = logging.getLogger("DroneImageSort")
     
-    logger.info(f"Starting image sorting for folder: {folder_path}")
+    # Use destination folder if provided, otherwise use source folder
+    if dest_folder is None:
+        dest_folder = source_folder
     
-    # Check if folder exists
-    if not os.path.exists(folder_path):
-        logger.error(f"Folder '{folder_path}' does not exist!")
+    logger.info(f"Starting image sorting")
+    logger.info(f"Source folder: {source_folder}")
+    logger.info(f"Destination folder: {dest_folder}")
+    
+    # Check if source folder exists
+    if not os.path.exists(source_folder):
+        logger.error(f"Source folder '{source_folder}' does not exist!")
         return False
     
-    logger.info(f"Processing folder: {folder_path}")
+    # Check if destination folder exists or create it
+    if not os.path.exists(dest_folder):
+        try:
+            os.makedirs(dest_folder, exist_ok=True)
+            logger.info(f"Created destination folder: {dest_folder}")
+        except Exception as e:
+            logger.error(f"Could not create destination folder: {e}")
+            return False
     
-    # Create folders if they don't exist
-    thermal_dir = os.path.join(folder_path, "Thermal")
-    visual_dir = os.path.join(folder_path, "Visual")
-    wide_dir = os.path.join(folder_path, "Wide")
-    other_dir = os.path.join(folder_path, "Other")
+    logger.info(f"Processing folder: {source_folder}")
+    
+    # Create sorted image folders in destination
+    thermal_dir = os.path.join(dest_folder, "Thermal")
+    visual_dir = os.path.join(dest_folder, "Visual")
+    wide_dir = os.path.join(dest_folder, "Wide")
+    other_dir = os.path.join(dest_folder, "Other")
     
     os.makedirs(thermal_dir, exist_ok=True)
     os.makedirs(visual_dir, exist_ok=True)
@@ -72,17 +92,17 @@ def sort_drone_images(folder_path, logger=None):
     
     logger.debug(f"Created/verified directories: Thermal, Visual, Wide")
     
-    # Process all files in the folder
+    # Process all files in the source folder
     moved_count = 0
     skipped_count = 0
     other_count = 0
     total_files = 0
     
-    files = os.listdir(folder_path)
+    files = os.listdir(source_folder)
     logger.info(f"Found {len(files)} items in folder")
     
     for filename in files:
-        file_path = os.path.join(folder_path, filename)
+        file_path = os.path.join(source_folder, filename)
         
         # Check if it's a file (not a folder)
         if os.path.isfile(file_path):
@@ -150,15 +170,19 @@ if __name__ == "__main__":
     logger.info("DroneImageSort started")
     logger.info(f"Log file: {log_file}")
     
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
         logger.error("Invalid number of arguments")
-        logger.info("Usage: python sort_images.py <folder_path>")
+        logger.info("Usage: python sort_images.py <source_folder> [destination_folder]")
         logger.info("Example: python sort_images.py C:\\Users\\User\\DronePhotos")
-        print("Usage: python sort_images.py <folder_path>")
+        logger.info("Example: python sort_images.py C:\\Users\\User\\DronePhotos C:\\Users\\User\\SortedPhotos")
+        print("Usage: python sort_images.py <source_folder> [destination_folder]")
         print("Example: python sort_images.py C:\\Users\\User\\DronePhotos")
+        print("Example: python sort_images.py C:\\Users\\User\\DronePhotos C:\\Users\\User\\SortedPhotos")
     else:
-        folder_path = sys.argv[1]
-        success = sort_drone_images(folder_path, logger)
+        source_folder = sys.argv[1]
+        dest_folder = sys.argv[2] if len(sys.argv) == 3 else None
+        
+        success = sort_drone_images(source_folder, logger, dest_folder)
         
         if success:
             logger.info("DroneImageSort completed successfully")

@@ -4,11 +4,14 @@ A Python utility to automatically sort drone images into categories based on the
 
 ## Features
 
+- **Command-line interface** - Quick sorting from terminal
+- **Graphical User Interface (GUI)** - Easy-to-use visual interface with colorful design
 - Automatically sorts images into **Thermal**, **Visual**, and **Wide** folders
 - Moves unrecognized images to an **Other** folder
 - Skips files that already exist in the destination folder
 - Comprehensive error handling and logging
-- Easy-to-use command-line interface
+- Optional destination folder selection
+- Real-time log display in GUI
 
 ## Image Categories
 
@@ -16,18 +19,6 @@ A Python utility to automatically sort drone images into categories based on the
 - **Visual**: Images ending with `_v.jpg` or `_z.jpg` (visual/zoom camera)
 - **Wide**: Images ending with `_w.jpg` (wide camera)
 - **Other**: Any other files that don't match the above patterns
-
-## Usage
-
-```bash
-python sort_images.py <folder_path>
-```
-
-### Example
-
-```bash
-python sort_images.py C:\Users\User\DronePhotos
-```
 
 ## Installation
 
@@ -37,9 +28,38 @@ git clone https://github.com/yourusername/DroneImageSort.git
 cd DroneImageSort
 ```
 
-2. Run the script:
+2. No external dependencies required! The project uses only Python standard library.
+
+## Usage
+
+### GUI Mode (Recommended for most users)
+
 ```bash
-python sort_images.py <your_folder_path>
+python gui.py
+```
+
+The GUI provides a user-friendly interface to:
+1. Select source folder containing drone images
+2. Optionally select destination folder (defaults to source folder)
+3. View real-time sorting progress and logs
+4. View complete log file after sorting
+
+### Command-Line Mode
+
+```bash
+python sort_images.py <source_folder> [destination_folder]
+```
+
+#### Examples
+
+Sort images in place:
+```bash
+python sort_images.py C:\Users\User\DronePhotos
+```
+
+Sort images to a different destination:
+```bash
+python sort_images.py C:\Users\User\DronePhotos C:\Users\User\SortedPhotos
 ```
 
 ## Output
@@ -63,11 +83,20 @@ Log levels:
 - **WARNING**: Skipped files (already exist)
 - **ERROR**: Errors encountered during execution
 
+## GUI Features
+
+- **Welcome Screen**: Colorful welcome interface with title and instructions
+- **Source Selection**: Browse and select source folder containing images
+- **Destination Selection**: Optional destination folder selection
+- **Progress Display**: Real-time output log showing sorting progress
+- **Completion Options**: View full log file or sort another folder
+
 ## Requirements
 
 - Python 3.6+
-- No external dependencies
+- No external dependencies (uses only standard library: `tkinter`, `logging`, `shutil`, `os`, `sys`)
 
 ## License
 
 MIT License
+
